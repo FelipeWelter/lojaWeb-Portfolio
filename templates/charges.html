@@ -1,0 +1,379 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="card charges-funnel-card">
+  <h2>Central de Cobranças</h2>
+
+  <div class="charges-kpi-grid">
+    <article class="charges-kpi danger">
+      <small>🔴 Vencidas</small>
+      <strong>R$ {{ '%.2f'|format(overdue_total) }}</strong>
+    </article>
+    <article class="charges-kpi warning">
+      <small>🟡 Pendentes (7 dias)</small>
+      <strong>R$ {{ '%.2f'|format(pending_total) }}</strong>
+    </article>
+    <article class="charges-kpi success">
+      <small>🟢 Recebidas</small>
+      <strong>R$ {{ '%.2f'|format(received_total) }}</strong>
+    </article>
+  </div>
+
+  <form method="post" class="grid form-grid charges-form-grid">
+    <div class="charges-form-block">
+      <h3 class="charges-form-title">Origem da cobrança</h3>
+      <div class="charges-form-row charges-form-row--primary">
+      <div class="field-stack">
+        <label for="sale_id">Venda (opcional)</label>
+        <select id="sale_id" name="sale_id">
+          <option value="">Sem venda</option>
+          {% for s in sales %}<option value="{{ s.id }}" data-total="{{ '%.2f'|format(s.total) }}">{{ s.sale_name }} - {{ s.client.name }} - R$ {{ '%.2f'|format(s.total) }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field-stack">
+        <label for="service_id">Serviço cadastrado (opcional)</label>
+        <select id="service_id" name="service_id">
+          <option value="">Sem serviço</option>
+          {% for ticket, srv in maintenance_service_rows %}
+          <option value="{{ srv.id }}" data-total="{{ '%.2f'|format(srv.total_price) }}">OS #{{ ticket.id }} - {{ srv.service_name }} - {{ srv.client_name }} - R$ {{ '%.2f'|format(srv.total_price) }}</option>
+          {% endfor %}
+          {% for srv in standalone_services %}
+          <option value="{{ srv.id }}" data-total="{{ '%.2f'|format(srv.total_price) }}">Serviço avulso #{{ srv.id }} - {{ srv.service_name }} - {{ srv.client_name }} - R$ {{ '%.2f'|format(srv.total_price) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field-stack">
+        <label for="charge-source-total">Total da venda/serviço</label>
+        <input id="charge-source-total" type="number" min="0" step="0.01" placeholder="0,00" readonly />
+      </div>
+    </div>
+    </div>
+
+    <div class="charges-form-block">
+      <h3 class="charges-form-title">Detalhes da cobrança</h3>
+      <div class="charges-form-row charges-form-row--details">
+      <div class="field-stack">
+        <label for="due_date">Data de vencimento</label>
+        <input id="due_date" name="due_date" type="date" />
+      </div>
+      <div class="field-stack">
+        <label for="charge-discount">Desconto na cobrança</label>
+        <input id="charge-discount" name="charge_discount" type="number" min="0" step="0.01" value="0" />
+      </div>
+      <div class="field-stack">
+        <label for="charge-amount">Valor final da cobrança</label>
+        <input id="charge-amount" name="amount" type="number" min="0" step="0.01" placeholder="0,00" readonly />
+      </div>
+      <div class="field-stack">
+        <label for="amount_paid">Valor pago</label>
+        <input id="amount_paid" name="amount_paid" type="number" min="0" step="0.01" placeholder="0,00" />
+      </div>
+      <div class="field-stack">
+        <label for="mercado_pago_reference">Referência Mercado Pago</label>
+        <input id="mercado_pago_reference" name="mercado_pago_reference" placeholder="ID/referência no Mercado Pago" required />
+      </div>
+      <div class="field-stack">
+        <label for="payment_method">Forma de pagamento</label>
+        <select id="payment_method" name="payment_method" required>
+          {% for value, label in payment_methods %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field-stack">
+        <label for="status">Status</label>
+        <select id="status" name="status">
+          <option value="pendente">Pendente</option>
+          <option value="atrasado">Atrasado</option>
+          <option value="parcial">Parcial</option>
+          <option value="confirmado">Confirmado</option>
+          <option value="cancelado">Cancelado</option>
+        </select>
+      </div>
+      <fieldset class="charges-installments-box">
+        <legend>Parcelamento</legend>
+        <label class="checkbox-inline"><input type="checkbox" id="is-installment" name="is_installment" /> Pagamento parcelado</label>
+        <div class="field-stack">
+          <label for="installment-count">Parcelas</label>
+          <input id="installment-count" name="installment_count" type="number" min="1" value="1" />
+        </div>
+        <small id="installment-preview">Parcela: R$ 0,00</small>
+      </fieldset>
+    </div>
+    </div>
+
+    <div class="charges-form-actions">
+      <button type="submit" class="btn-loja btn-loja--primary">Registrar cobrança</button>
+      <button type="button" class="btn-loja btn-loja--secondary btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='cobranca_relatorio', record_id=0) }}">Imprimir relatório de inadimplência</button>
+    </div>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Lançamentos</h2>
+
+  <div class="charges-filter-bar">
+    <input id="filter-client" type="text" placeholder="Filtrar por Cliente" />
+    <input id="filter-month" type="month" />
+  </div>
+
+  <div class="table-wrap charges-table-wrap">
+    <table id="charges-table">
+      <thead><tr><th>Data de Vencimento</th><th>Cliente</th><th>Descrição</th><th>Valor</th><th>Status</th><th>Pagamento</th><th>Ref.</th><th>Ações</th></tr></thead>
+      <tbody>
+        {% for c in charges %}
+        {% set ui_status = charge_ui_status(c) %}
+        {% set total_amount = charge_total_amount(c) %}
+        {% set balance = charge_balance(c) %}
+        <tr class="{% if ui_status == 'vencido' %}charge-overdue-row{% endif %}" data-client="{{ (c.sale.client.name if c.sale and c.sale.client else (c.service.client_name if c.service else 'Sem cliente'))|lower }}" data-month="{{ c.due_date.strftime('%Y-%m') if c.due_date else '' }}" data-overdue="{{ '1' if ui_status == 'vencido' else '0' }}">
+          <td>{{ c.due_date.strftime('%d/%m/%Y') if c.due_date else '-' }}</td>
+          <td>{% if c.sale %}{{ c.sale.client.name }}{% elif c.service %}{{ c.service.client_name }}{% else %}Sem cliente{% endif %}</td>
+          <td>
+            {% if c.sale %}
+              {% set sale_descriptions = c.sale.items | map(attribute='description') | list %}
+              <strong>{{ c.sale.sale_name }}</strong>
+              {% if sale_descriptions %}
+                <br><small>{{ sale_descriptions[:2]|join(' • ') }}{% if sale_descriptions|length > 2 %}…{% endif %}</small>
+              {% endif %}
+            {% elif c.service %}
+              <strong>{{ c.service.service_name }}</strong>
+              <br><small>{{ c.service.equipment }}</small>
+            {% else %}
+              -
+            {% endif %}
+          </td>
+          <td>
+            R$ {{ '%.2f'|format(total_amount) }}
+            {% if c.is_installment and (c.installment_count or 1) > 1 %}
+            <br><small>{{ c.installment_count }}x de R$ {{ '%.2f'|format(c.installment_value or 0) }}</small>
+            {% endif %}
+            <br><small>Pago: R$ {{ '%.2f'|format(c.amount_paid) }} | Saldo: R$ {{ '%.2f'|format(balance) }}</small>
+          </td>
+          <td>
+            <span class="status-pill {{ ui_status }}">{{ ui_status|capitalize }}</span>
+          </td>
+          <td>{{ c.payment_method|capitalize }}{% if c.is_installment and (c.installment_count or 1) > 1 %} • Parcelado{% endif %}</td>
+          <td>{{ c.mercado_pago_reference }}</td>
+          <td>
+            <button type="button" class="btn-loja btn-loja--secondary btn-secondary actions-menu-trigger js-actions-toggle" data-menu-id="charge-actions-{{ c.id }}" aria-expanded="false">
+              Ações ▾
+            </button>
+            <div id="charge-actions-{{ c.id }}" class="actions-modal" hidden>
+              <div class="actions-modal-panel">
+                <div class="actions-modal-header">
+                  <strong>Ações da cobrança</strong>
+                  <button type="button" class="actions-modal-close js-actions-close" data-menu-id="charge-actions-{{ c.id }}" aria-label="Fechar">✕</button>
+                </div>
+                <div class="actions-menu-content">
+                <form method="post" action="{{ url_for('editar_cobranca', charge_id=c.id) }}" class="inline-form charge-edit-form">
+                  <div class="field-stack">
+                    <label>Referência Mercado Pago</label>
+                    <input name="mercado_pago_reference" value="{{ c.mercado_pago_reference }}" required />
+                  </div>
+                  <div class="field-stack">
+                    <label>Data de vencimento</label>
+                    <input name="due_date" type="date" value="{{ c.due_date.strftime('%Y-%m-%d') if c.due_date else '' }}" />
+                  </div>
+                  <div class="field-stack">
+                    <label>Valor total</label>
+                    <input name="amount" type="number" min="0" step="0.01" value="{{ '%.2f'|format(c.amount) }}" />
+                  </div>
+                  <div class="field-stack">
+                    <label>Valor pago agora</label>
+                    <input name="amount_paid" type="number" min="0" step="0.01" value="0.00" />
+                  </div>
+                  <label class="checkbox-inline"><input type="checkbox" name="is_installment" {% if c.is_installment %}checked{% endif %} /> Parcelado</label>
+                  <div class="field-stack">
+                    <label>Parcelas</label>
+                    <input name="installment_count" type="number" min="1" value="{{ c.installment_count or 1 }}" />
+                  </div>
+                  <div class="field-stack">
+                    <label>Forma de pagamento</label>
+                    <select name="payment_method">
+                      {% for value, label in payment_methods %}
+                      <option value="{{ value }}" {% if c.payment_method == value %}selected{% endif %}>{{ label }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="field-stack">
+                    <label>Status</label>
+                    <select name="status">
+                      <option value="pendente" {% if c.status == 'pendente' %}selected{% endif %}>Pendente</option>
+                      <option value="atrasado" {% if c.status == 'atrasado' %}selected{% endif %}>Atrasado</option>
+                      <option value="parcial" {% if c.status == 'parcial' %}selected{% endif %}>Parcial</option>
+                      <option value="confirmado" {% if c.status == 'confirmado' %}selected{% endif %}>Confirmado</option>
+                      <option value="cancelado" {% if c.status == 'cancelado' %}selected{% endif %}>Cancelado</option>
+                    </select>
+                  </div>
+                  <button type="submit" class="btn-loja btn-loja--primary">Salvar</button>
+                </form>
+
+                {% if c.is_installment and (c.installment_count or 1) > 1 %}
+                  {% if c.status != 'confirmado' and c.status != 'cancelado' %}
+                  <form method="post" action="{{ url_for('confirmar_cobranca', charge_id=c.id) }}">
+                    <button type="submit" class="btn-loja btn-loja--primary">Marcar faturas pagas</button>
+                  </form>
+                  {% endif %}
+                {% else %}
+                  {% if c.status != 'confirmado' and c.status != 'cancelado' %}
+                  <form method="post" action="{{ url_for('confirmar_cobranca', charge_id=c.id) }}">
+                    <button type="submit" class="btn-loja btn-loja--primary">Confirmar pagamento</button>
+                  </form>
+                  <form method="post" action="{{ url_for('cancelar_cobranca', charge_id=c.id) }}" onsubmit="return confirm('Deseja cancelar esta cobrança?');">
+                    <button type="submit" class="btn-loja btn-loja--secondary">Cancelar cobrança</button>
+                  </form>
+                  {% endif %}
+                  <form method="post" action="{{ url_for('excluir_cobranca', charge_id=c.id) }}" onsubmit="return confirm('Deseja excluir esta cobrança? Esta ação não pode ser desfeita.');">
+                    <button type="submit" class="btn-loja btn-loja--danger">Excluir cobrança</button>
+                  </form>
+                {% endif %}
+                {% if c.amount_paid > 0 and charge_balance(c) > 0 %}
+                <button type="button" class="btn-loja btn-loja--secondary btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='cobranca_recibo_parcial', record_id=c.id) }}">Imprimir recibo parcial</button>
+                {% endif %}
+                </div>
+              </div>
+            </div>
+          </td>
+        </tr>
+        {% else %}<tr><td colspan="8">Sem cobranças.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<script>
+  const filterClient = document.getElementById('filter-client');
+  const filterMonth = document.getElementById('filter-month');
+  const tableRows = document.querySelectorAll('#charges-table tbody tr[data-client]');
+
+  const saleSelect = document.getElementById('sale_id');
+  const serviceSelect = document.getElementById('service_id');
+  const amountInput = document.getElementById('charge-amount');
+  const sourceTotalInput = document.getElementById('charge-source-total');
+  const discountInput = document.getElementById('charge-discount');
+  const installmentCheck = document.getElementById('is-installment');
+  const installmentCountInput = document.getElementById('installment-count');
+  const installmentPreview = document.getElementById('installment-preview');
+  const actionsToggleButtons = document.querySelectorAll('.js-actions-toggle');
+  const actionsCloseButtons = document.querySelectorAll('.js-actions-close');
+
+
+  function toCents(value) {
+    return window.decimalMath?.toCents?.(value) || 0;
+  }
+
+  function fromCents(cents) {
+    return window.decimalMath?.fromCents?.(cents) || (Number(cents || 0) / 100);
+  }
+
+  function closeActionMenus(exceptMenuId = null) {
+    actionsToggleButtons.forEach((button) => {
+      const menuId = button.dataset.menuId;
+      const menu = menuId ? document.getElementById(menuId) : null;
+      if (!menu || menuId === exceptMenuId) return;
+      menu.hidden = true;
+      button.setAttribute('aria-expanded', 'false');
+    });
+    document.body.classList.toggle('modal-open', Boolean(exceptMenuId));
+  }
+
+  function applyChargeFilters() {
+    const clientValue = (filterClient?.value || '').trim().toLowerCase();
+    const monthValue = filterMonth?.value || '';
+
+    tableRows.forEach((row) => {
+      const client = row.dataset.client || '';
+      const month = row.dataset.month || '';
+
+      const matchClient = !clientValue || client.includes(clientValue);
+      const matchMonth = !monthValue || month === monthValue;
+      row.style.display = matchClient && matchMonth ? '' : 'none';
+    });
+  }
+
+  function selectedTotalCents(selectEl) {
+    const option = selectEl?.selectedOptions?.[0];
+    return toCents(option?.dataset?.total || '0');
+  }
+
+  function syncChargeAmountFromSource() {
+    const totalCents = Math.max(selectedTotalCents(saleSelect), selectedTotalCents(serviceSelect));
+    const discountCents = toCents(discountInput?.value || '0');
+    const finalCents = Math.max(0, totalCents - discountCents);
+    if (sourceTotalInput) sourceTotalInput.value = fromCents(totalCents).toFixed(2);
+    if (amountInput) amountInput.value = fromCents(finalCents).toFixed(2);
+    updateInstallmentPreview();
+  }
+
+  function updateInstallmentPreview() {
+    const amountCents = toCents(amountInput?.value || '0');
+    const isInstallment = Boolean(installmentCheck?.checked);
+    let count = Number(installmentCountInput?.value || 1);
+    if (!Number.isFinite(count) || count < 1) count = 1;
+    if (!isInstallment) count = 1;
+    if (installmentCountInput) installmentCountInput.disabled = !isInstallment;
+
+    const partCents = count > 0 ? Math.floor(amountCents / count) : amountCents;
+    installmentPreview.textContent = `Parcela: ${(window.decimalMath?.formatBRLFromCents?.(partCents)) || fromCents(partCents).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`;
+  }
+
+  [filterClient, filterMonth].forEach((el) => {
+    el?.addEventListener('input', applyChargeFilters);
+    el?.addEventListener('change', applyChargeFilters);
+  });
+
+  saleSelect?.addEventListener('change', () => {
+    if (saleSelect.value && serviceSelect) serviceSelect.value = '';
+    syncChargeAmountFromSource();
+  });
+
+  serviceSelect?.addEventListener('change', () => {
+    if (serviceSelect.value && saleSelect) saleSelect.value = '';
+    syncChargeAmountFromSource();
+  });
+
+  [amountInput, installmentCheck, installmentCountInput, discountInput].forEach((el) => {
+    el?.addEventListener('input', () => {
+      if (el === discountInput) syncChargeAmountFromSource();
+      else updateInstallmentPreview();
+    });
+    el?.addEventListener('change', () => {
+      if (el === discountInput) syncChargeAmountFromSource();
+      else updateInstallmentPreview();
+    });
+  });
+
+  actionsToggleButtons.forEach((button) => {
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const menuId = button.dataset.menuId;
+      const menu = menuId ? document.getElementById(menuId) : null;
+      if (!menu) return;
+      const willOpen = menu.hidden;
+      closeActionMenus(menuId);
+      menu.hidden = !willOpen;
+      button.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+    });
+  });
+
+  actionsCloseButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      closeActionMenus();
+    });
+  });
+
+  document.querySelectorAll('.actions-modal').forEach((modal) => {
+    modal.addEventListener('click', (event) => {
+      if (event.target === modal) {
+        closeActionMenus();
+      }
+    });
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      closeActionMenus();
+    }
+  });
+
+  syncChargeAmountFromSource();
+  updateInstallmentPreview();
+</script>
+{% endblock %}

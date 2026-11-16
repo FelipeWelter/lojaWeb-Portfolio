@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="card">
+  <div class="inventory-header">
+    <h2>Gestão de Inventário</h2>
+  </div>
+
+  <div class="inventory-filters">
+    <input id="filter-name" type="search" placeholder="Buscar por nome" />
+    <select id="filter-category">
+      <option value="">Todas categorias</option>
+      {% for category in categories %}
+      <option value="{{ category }}">{{ category }}</option>
+      {% endfor %}
+    </select>
+    <select id="filter-status">
+      <option value="">Todos status</option>
+      <option value="ativo">Ativos</option>
+      <option value="inativo">Inativos</option>
+    </select>
+  </div>
+
+  <table class="stock-table" id="inventory-table">
+    <thead><tr><th>Foto</th><th>Produto</th><th>Categoria</th><th>Estoque</th><th>Venda</th><th>Status</th><th>Ações</th></tr></thead>
+    <tbody>
+      {% for p in products %}
+      <tr data-name="{{ p.inventory_display_name|lower }}" data-category="{{ p.category|lower }}" data-status="{{ 'ativo' if p.active else 'inativo' }}">
+        <td>
+          {% if p.inventory_image_url %}
+          <img src="{{ p.inventory_image_url }}" alt="Foto de {{ p.name }}" class="stock-thumb" loading="lazy" />
+          {% else %}
+          <span>—</span>
+          {% endif %}
+        </td>
+        <td>{{ p.inventory_display_name }}</td>
+        <td>{{ p.category }}</td>
+        <td>{{ p.stock }}</td>
+        <td>R$ {{ '%.2f'|format(p.price) }}</td>
+        <td>{{ 'Ativo' if p.active else 'Inativo' }}</td>
+        <td>
+          <div class="action-row-inline">
+            <a class="btn-loja btn-loja--secondary btn-secondary" href="{{ url_for('produtos', edit_product_id=p.id, return_to=url_for('gestao_inventario')) }}">Editar</a>
+            {% if p.active %}
+            <form method="post" action="{{ url_for('remover_produto', product_id=p.id) }}" class="inline-form">
+              <button type="submit" class="btn-danger">Inativar</button>
+            </form>
+            {% else %}
+            <form method="post" action="{{ url_for('ativar_produto', product_id=p.id) }}" class="inline-form">
+              <button type="submit" class="btn-primary">Ativar</button>
+            </form>
+            {% endif %}
+            <form method="post" action="{{ url_for('excluir_produto', product_id=p.id) }}" class="inline-form" onsubmit="return confirm('Deseja excluir permanentemente este item?');">
+              <button type="submit" class="btn-danger">Excluir</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+
+<script>
+  (function () {
+    const filterName = document.getElementById('filter-name');
+    const filterCategory = document.getElementById('filter-category');
+    const filterStatus = document.getElementById('filter-status');
+    const rows = document.querySelectorAll('#inventory-table tbody tr');
+
+    const applyFilters = () => {
+      const name = (filterName.value || '').toLowerCase();
+      const category = (filterCategory.value || '').toLowerCase();
+      const status = (filterStatus.value || '').toLowerCase();
+
+      rows.forEach((row) => {
+        const matchesName = !name || row.dataset.name.includes(name);
+        const matchesCategory = !category || row.dataset.category === category;
+        const matchesStatus = !status || row.dataset.status === status;
+        row.style.display = matchesName && matchesCategory && matchesStatus ? '' : 'none';
+      });
+    };
+
+    [filterName, filterCategory, filterStatus].forEach((el) => el.addEventListener('input', applyFilters));
+
+  })();
+</script>
+{% endblock %}

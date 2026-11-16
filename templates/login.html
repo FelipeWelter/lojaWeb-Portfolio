@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="card login-card">
+  <div class="login-brand"><img src="{{ url_for('static', filename=ui_store_logo or 'logo-lojaweb.svg') }}" alt="Logo {{ ui_store_name or 'LojaWeb' }}" class="login-logo" /></div>
+  <h2>Acesse sua conta</h2>
+  <p class="login-subtitle">Seja Bem-vindo! Faça login para continuar.</p>
+
+  <form method="post" class="login-form" id="login-form">
+    <input type="email" name="email" placeholder="E-mail" required autocomplete="email" autocapitalize="none" spellcheck="false" inputmode="email" />
+    <div class="password-wrap full-width">
+      <input id="password" type="password" name="password" placeholder="Senha" required minlength="6" autocomplete="current-password" />
+      <button type="button" class="toggle-password" id="toggle-password" aria-label="Mostrar senha" aria-pressed="false">👁️</button>
+    </div>
+    <label class="remember-row full-width">
+      <input type="checkbox" name="remember_me" />
+      <span>Lembrar-me</span>
+    </label>
+    <button type="submit" id="login-submit" class="full-width">Entrar</button>
+  </form>
+  <p><a class="forgot-password" role="button" href="{{ url_for('recuperar_senha') }}">Esqueci minha senha</a></p>
+</section>
+
+<script>
+  const passwordInput = document.getElementById('password');
+  const togglePassword = document.getElementById('toggle-password');
+  const loginForm = document.getElementById('login-form');
+  const loginSubmit = document.getElementById('login-submit');
+
+  togglePassword?.addEventListener('click', () => {
+    const reveal = passwordInput.type === 'password';
+    passwordInput.type = reveal ? 'text' : 'password';
+    togglePassword.setAttribute('aria-pressed', String(reveal));
+    togglePassword.setAttribute('aria-label', reveal ? 'Ocultar senha' : 'Mostrar senha');
+  });
+
+  loginForm?.addEventListener('submit', () => {
+    loginSubmit.disabled = true;
+    loginSubmit.textContent = 'Carregando...';
+  });
+</script>
+{% endblock %}

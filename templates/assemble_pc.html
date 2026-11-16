@@ -1,0 +1,426 @@
+{% extends 'base.html' %}
+{% block content %}
+{% from 'components.html' import piece_slot %}
+<section class="card montaje-card">
+  <div class="action-group" style="margin-bottom:10px;">
+    <a href="{{ url_for('produtos') }}" class="btn-loja btn-loja--secondary">⬅ Voltar para Produtos</a>
+  </div>
+  <h2>{% if edit_assembly %}Editar Montagem #{{ edit_assembly.id }}{% else %}Montagem de Computadores{% endif %}</h2>
+  <p class="montage-subtitle">{% if edit_assembly %}Edição de Comutadores Cadastrados.{% else %}Monte Seu Computador.{% endif %}</p>
+  <form method="post" action="{% if edit_assembly %}{{ url_for('editar_montagem', assembly_id=edit_assembly.id) }}{% endif %}" class="grid form-grid" id="form-montagem" enctype="multipart/form-data">
+    <div class="pc-layout full-width">
+      <section class="pc-builder-area">
+        <div class="pc-header full-width">
+          <label>
+            Identifiação do Computador
+            <input name="computer_name" placeholder="Ex: GAMER" value="{{ edit_assembly.nome_referencia if edit_assembly else "" }}" required {% if edit_assembly %}readonly{% endif %} />
+          </label>
+          <label>
+            Preço atual do computador (R$) -  não afeta o cálculo do orçamento
+            <input name="computer_original_price" type="number" min="0" step="0.01" placeholder="0,00" value="{{ "%.2f"|format(edit_assembly.preco_original) if edit_assembly else "" }}" />
+          </label>
+          <div class="file-upload-field">
+            <span class="field-label">Fotos do computador (opcional)</span>
+            <input id="photo-files" name="photo_files" type="file" accept="image/*" multiple class="hidden-file-input" />
+            <label for="photo-files" class="upload-dropzone" id="upload-trigger">
+              <span class="upload-icon" aria-hidden="true">📷</span>
+              <span>Clique para enviar a foto do PC</span>
+            </label>
+            <small id="upload-feedback">Nenhum arquivo selecionado.</small>
+          </div>
+        </div>
+
+        <div class="components-scroll-area full-width assembly-lines">
+          <div class="assembly-row two-columns">
+            {{ piece_slot('gabinete', 'Gabinete', parts_by_class) }}
+            {{ piece_slot('fans', 'Fans', parts_by_class, '🌀', allow_multiple=True) }}
+          </div>
+
+          <div class="assembly-row two-columns">
+            {{ piece_slot('placa_mae', 'Placa-mãe', parts_by_class) }}
+            {{ piece_slot('processador', 'Processador', parts_by_class) }}
+          </div>
+
+          <div class="assembly-row one-column">
+            {{ piece_slot('fonte', 'Fonte', parts_by_class) }}
+          </div>
+
+          <div class="assembly-row one-column">
+            {{ piece_slot('memoria_ram', 'Memória RAM', parts_by_class, allow_multiple=True) }}
+          </div>
+
+          <div class="assembly-row one-column">
+            {{ piece_slot('armazenamento', 'Armazenamento', parts_by_class, allow_multiple=True) }}
+          </div>
+
+          <div class="assembly-row one-column">
+            {{ piece_slot('placa_video', 'Placa de Vídeo', parts_by_class, '🎮') }}
+          </div>
+
+          <div class="assembly-row one-column">
+            <div class="slot-box optional-panel" data-slot="opcionais">
+              <div class="slot-heading">
+                <h3>Opcionais</h3>
+                <span class="slot-icon" aria-hidden="true">📝</span>
+              </div>
+              <div class="assembly-summary notes-panel full-width">
+                <label>
+                  Observações técnicas
+                  <textarea name="technical_notes" rows="4" placeholder="Ex: curva de fan ajustada, XMP ativado...">{{ edit_assembly.technical_notes if edit_assembly and edit_assembly.technical_notes else "" }}</textarea>
+                </label>
+                <div class="class-menu technical-checklist">
+                  <label>
+                    <input type="checkbox" name="bios_updated" {% if edit_assembly and edit_assembly.bios_updated %}checked{% endif %}/>
+                    🩻​ Atualização de BIOS (R$)<input name="bios_service_cost" type="number" min="0" step="0.01" value="{{ '%.2f'|format(edit_assembly.bios_service_cost or 0) if edit_assembly else '0.00' }}" />
+                    </label>
+                  <label>
+                    <input type="checkbox" name="stress_test_done" {% if edit_assembly and edit_assembly.stress_test_done %}checked{% endif %}/> 
+                    🔥Teste de Estresse (R$)<input name="stress_test_cost" type="number" min="0" step="0.01" value="{{ '%.2f'|format(edit_assembly.stress_test_cost or 0) if edit_assembly else '0.00' }}" />
+                  </label>
+                  <label>
+                    <input type="checkbox" name="os_installed" {% if edit_assembly and edit_assembly.os_installed %}checked{% endif %}/> 
+                    💿 Sistema Operacional Instalado(R$)<input name="os_install_cost" type="number" min="0" step="0.01" value="{{ '%.2f'|format(edit_assembly.os_install_cost or 0) if edit_assembly else '0.00' }}" />
+                  </label>
+                  <label>
+                    <input type="checkbox" name="create_stock_item" {% if not edit_assembly %}checked{% endif %}/> Criar item automaticamente em "Computador" no estoque</label>
+                  <label>
+                    <input type="checkbox" name="send_to_sales" /> Enviar montagem finalizada direto para o carrinho de vendas</label>
+                </div>
+              </div>
+
+              <div class="assembly-summary summary-highlight summary-inline">
+                <div class="summary-values">
+                  <p class="summary-title">Resumo do Orçamento</p>
+                  <p><strong>Custo Total:</strong> <span id="total-custo">R$ 0,00</span></p>
+                  <p><strong>Total de venda das peças:</strong> <span id="total-sugerido">R$ 0,00</span></p>
+                  <label class="checkbox-inline"><input type="checkbox" id="apply-price-suggestion" name="apply_price_suggestion" /> Aplicar sugestão no valor final</label>
+                </div>
+                <button type="submit" class="summary-submit">{% if edit_assembly %}Salvar montagem{% else %}Finalizar montagem{% endif %}</button>
+                <p class="summary-hint">Desmarcado: mantém custo de compra das peças. Marcado: usa o preço de venda das peças + 20% de sugestão.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Histórico de montagens</h2>
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Lote</th>
+        <th>Referência</th>
+        <th>Computador</th>
+        <th>Preço original</th>
+        <th>Preço sugerido</th>
+        <th>Custo peças</th>
+        <th>Peças utilizadas</th>
+        <th>Checklist técnico</th>
+        <th>Status</th>
+        <th>Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for montagem in latest_assemblies %}
+      <tr>
+        <td>#{{ montagem.id }}</td>
+        <td>{{ montagem.nome_referencia }}</td>
+        <td>{{ montagem.computador.name if montagem.computador else "Computador removido" }}</td>
+        <td>R$ {{ '%.2f'|format(montagem.preco_original) }}</td>
+        <td>R$ {{ '%.2f'|format(montagem.preco_sugerido) }}</td>
+        <td>R$ {{ '%.2f'|format(montagem.custo_total) }}</td>
+        <td>
+          {% for item in montagem.composicao %}
+            <span class="assembly-part">{{ item.peca.name if item.peca else "Peça removida" }} x{{ item.quantidade_utilizada }}</span>{% if not loop.last or montagem.custom_parts %}, {% endif %}
+          {% endfor %}
+          {% for custom in montagem.custom_parts %}
+            <span class="assembly-part">{{ custom.part_name }} x{{ custom.quantity }} (custom)</span>{% if not loop.last %}, {% endif %}
+          {% endfor %}
+        </td>
+        <td>
+          {% if montagem.technical_notes %}<div>{{ montagem.technical_notes }}</div>{% endif %}
+          <small>
+            BIOS: {{ 'Sim' if montagem.bios_updated else 'Não' }} |
+            Stress: {{ 'Sim' if montagem.stress_test_done else 'Não' }} |
+            SO: {{ 'Sim' if montagem.os_installed else 'Não' }}
+          </small>
+        </td>
+        <td>
+          {% if montagem.canceled %}
+            <span class="badge danger">Cancelada</span>
+          {% else %}
+            <span class="badge success">Ativa</span>
+          {% endif %}
+        </td>
+        <td>
+          <div class="action-group">
+            <a class="btn-secondary" href="{{ url_for('montar_pc', edit_assembly_id=montagem.id) }}">Editar</a>
+            <button type="button" class="btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='montagem', record_id=montagem.id) }}">Imprimir</button>
+            <form method="post" action="{{ url_for('excluir_montagem', assembly_id=montagem.id) }}" onsubmit="return confirm('Deseja excluir esta montagem? Esta ação não pode ser desfeita.');">
+              <button type="submit" class="btn-danger">Excluir montagem</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="10">Nenhuma montagem registrada.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+{% set modal_id='assembly-confirm-modal' %}
+<!--
+{% set modal_title='Enviar para o carrinho?' %}
+{% set modal_message='Você poderá finalizar a venda imediatamente após montar o PC.' %}
+{% include 'includes/modal.html' %}
+-->
+
+<script>
+  const form = document.getElementById('form-montagem');
+  const custoEl = document.getElementById('total-custo');
+  const custoMobileEl = document.getElementById('total-custo-mobile');
+  const sugeridoEl = document.getElementById('total-sugerido');
+  const applySuggestionCheckbox = document.getElementById('apply-price-suggestion');
+
+
+  function syncPieceEntry(input) {
+    if (!input) return;
+    const row = input.closest('.multi-row, .slot-box');
+    const hiddenId = row?.querySelector('.stock-id-input');
+    const costInput = row?.querySelector('input[name$="_cost"], input[name$="_custom_costs[]"]');
+    const priceInput = row?.querySelector('input[name$="_price"], input[name$="_custom_prices[]"]');
+    const listId = input.getAttribute('list');
+    const list = listId ? document.getElementById(listId) : null;
+    const normalizedInput = String(input.value || '').trim().toLowerCase();
+    const match = list
+      ? Array.from(list.options).find((option) => {
+          const optionValue = String(option.value || '').trim().toLowerCase();
+          const optionLabel = String(option.getAttribute('label') || option.dataset.label || '').trim().toLowerCase();
+          const optionLabelPrefix = optionLabel.split(' (r$')[0];
+          return normalizedInput && (
+            optionValue === normalizedInput
+            || optionLabel === normalizedInput
+            || optionLabelPrefix === normalizedInput
+          );
+        })
+      : null;
+
+    if (match && hiddenId) {
+      hiddenId.value = match.dataset.id || '';
+      if (costInput) {
+        costInput.value = Number(match.dataset.cost || 0).toFixed(2);
+      }
+      if (priceInput) {
+        priceInput.value = Number(match.dataset.price || 0).toFixed(2);
+      }
+      return;
+    }
+
+    if (hiddenId) hiddenId.value = '';
+  }
+
+
+  function atualizarTotais() {
+    let pecasCents = 0;
+    let suggestedPiecesOnlyCents = 0;
+
+    form.querySelectorAll('.multi-row').forEach((row) => {
+      const stockId = row.querySelector('input[name$="_stock_ids[]"]')?.value;
+      const entryInput = row.querySelector('input[name$="_entries[]"]');
+      const qtyInput = row.querySelector('input[name$="_qtys[]"]');
+      const customCostInput = row.querySelector('input[name$="_custom_costs[]"]');
+      const customPriceInput = row.querySelector('input[name$="_custom_prices[]"]');
+      const qty = Number(qtyInput?.value || 0);
+      const isStock = Boolean(stockId);
+
+      if ((isStock || (entryInput && entryInput.value.trim())) && qty > 0) {
+        const unitCostCents = toCents(customCostInput.value);
+        const unitPriceCents = toCents(customPriceInput?.value || 0);
+        pecasCents += Math.round(unitCostCents * qty);
+        suggestedPiecesOnlyCents += Math.round(unitPriceCents * qty);
+      }
+    });
+
+    form.querySelectorAll('.single-slot').forEach((box) => {
+      const entryInput = box.querySelector('input[name^="slot_"][name$="_entry"]');
+      const stockId = box.querySelector('input[name^="slot_"][name$="_stock_id"]')?.value;
+      const cost = box.querySelector('input[name^="slot_"][name$="_cost"]');
+      const price = box.querySelector('input[name^="slot_"][name$="_price"]');
+
+      if (!entryInput || !entryInput.value.trim()) return;
+      if (stockId || entryInput.value.trim()) {
+        const unitCostCents = toCents(cost?.value || 0);
+        const unitPriceCents = toCents(price?.value || 0);
+        pecasCents += unitCostCents;
+        suggestedPiecesOnlyCents += unitPriceCents;
+      }
+    });
+
+    const extraServicesCents = toCents(form.querySelector('input[name="bios_service_cost"]')?.value) + toCents(form.querySelector('input[name="stress_test_cost"]')?.value) + toCents(form.querySelector('input[name="os_install_cost"]')?.value);
+    const suggestedWithMarkupCents = Math.round(suggestedPiecesOnlyCents * 1.2);
+    const finalPiecesCents = applySuggestionCheckbox?.checked ? suggestedWithMarkupCents : pecasCents;
+    const finalCents = finalPiecesCents + extraServicesCents;
+
+    custoEl.textContent = formatBRLFromCents(finalCents);
+    if (sugeridoEl) sugeridoEl.textContent = formatBRLFromCents(suggestedPiecesOnlyCents);
+    if (custoMobileEl) {
+      custoMobileEl.textContent = formatBRLFromCents(finalCents);
+    }
+  }
+
+  function toCents(value) {
+    return window.decimalMath?.toCents?.(value) || 0;
+  }
+
+  function formatBRLFromCents(cents) {
+    return window.decimalMath?.formatBRLFromCents?.(cents) || (Number(cents || 0) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  document.querySelectorAll('.add-item').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const slot = btn.dataset.slot;
+      const list = document.querySelector(`.multi-list[data-slot="${slot}"]`);
+      const firstRow = list.querySelector('.multi-row');
+      const clone = firstRow.cloneNode(true);
+      clone.querySelector('input[name$="_entries[]"]').value = '';
+      clone.querySelector('input[name$="_stock_ids[]"]').value = '';
+      clone.querySelector('input[name$="_custom_costs[]"]').value = '';
+      clone.querySelector('input[name$="_custom_prices[]"]').value = '';
+      clone.querySelector('input[name$="_qtys[]"]').value = 1;
+      list.appendChild(clone);
+      atualizarTotais();
+    });
+  });
+
+  form.addEventListener('click', (event) => {
+    const target = event.target;
+
+    if (target.classList.contains('row-remove')) {
+      const list = target.closest('.multi-list');
+      const rows = list.querySelectorAll('.multi-row');
+      if (rows.length > 1) {
+        target.closest('.multi-row').remove();
+      } else {
+        const row = rows[0];
+        row.querySelector('input[name$="_entries[]"]').value = '';
+        row.querySelector('input[name$="_stock_ids[]"]').value = '';
+        row.querySelector('input[name$="_custom_costs[]"]').value = '';
+        row.querySelector('input[name$="_custom_prices[]"]').value = '';
+        row.querySelector('input[name$="_qtys[]"]').value = 1;
+      }
+      atualizarTotais();
+    }
+  });
+
+  form.addEventListener('change', (event) => {
+    if (event.target.classList.contains('piece-entry')) {
+      syncPieceEntry(event.target);
+    }
+    if (event.target.id === 'photo-files') {
+      const feedback = document.getElementById('upload-feedback');
+      const trigger = document.getElementById('upload-trigger');
+      const total = event.target.files?.length || 0;
+      feedback.textContent = total ? `${total} arquivo(s) selecionado(s).` : 'Nenhum arquivo selecionado.';
+      trigger.classList.toggle('has-file', total > 0);
+    }
+    atualizarTotais();
+  });
+  applySuggestionCheckbox?.addEventListener('change', atualizarTotais);
+
+  form.addEventListener('input', (event) => {
+    if (event.target.classList.contains('piece-entry')) {
+      syncPieceEntry(event.target);
+    }
+    atualizarTotais();
+  });
+
+
+  {% if edit_assembly %}
+  const editData = {{ assembly_edit_data.get(edit_assembly.id, {})|tojson }};
+  {% if edit_assembly.computador %}
+  const shouldApplySuggestion = {{ 'true' if edit_assembly.apply_price_suggestion else 'false' }};
+  if (applySuggestionCheckbox) applySuggestionCheckbox.checked = shouldApplySuggestion;
+  {% endif %}
+  if (editData.single_selected) {
+    Object.entries(editData.single_selected).forEach(([slot, selectedData]) => {
+      const selectedId = selectedData?.piece_id ?? selectedData;
+      const selectedName = selectedData?.piece_name || '';
+      const input = form.querySelector(`.single-slot[data-slot="${slot}"] .stock-id-input`);
+      const entry = form.querySelector(`.single-slot[data-slot="${slot}"] .piece-entry`);
+      if (input && selectedId) input.value = String(selectedId);
+      if (entry) {
+        const list = document.getElementById(`datalist-${slot}`);
+        const match = Array.from(list?.options || []).find(o => String(o.dataset.id) === String(selectedId));
+        entry.value = match?.value || selectedName || '';
+        syncPieceEntry(entry);
+      }
+    });
+  }
+
+  if (editData.single_custom) {
+    Object.entries(editData.single_custom).forEach(([slot, custom]) => {
+      const slotBox = form.querySelector(`.single-slot[data-slot="${slot}"]`);
+      const entry = slotBox?.querySelector('.piece-entry');
+      const cost = slotBox?.querySelector('input[name^="slot_"][name$="_cost"]');
+      const price = slotBox?.querySelector('input[name^="slot_"][name$="_price"]');
+      const stockId = slotBox?.querySelector('.stock-id-input');
+      if (!slotBox || !entry) return;
+      if (!entry.value && custom?.name) {
+        entry.value = custom.name;
+      }
+      if (cost && custom?.cost) {
+        cost.value = custom.cost;
+      }
+      if (price && custom?.price) {
+        price.value = custom.price;
+      }
+      if (stockId && !entry.value.trim()) {
+        stockId.value = '';
+      }
+      syncPieceEntry(entry);
+    });
+  }
+
+  if (editData.multi_rows) {
+    Object.entries(editData.multi_rows).forEach(([slot, rows]) => {
+      const list = form.querySelector(`.multi-list[data-slot="${slot}"]`);
+      const firstRow = list?.querySelector('.multi-row');
+      if (!list || !firstRow || !Array.isArray(rows) || !rows.length) return;
+      list.innerHTML = '';
+      rows.forEach((rowData) => {
+        const row = firstRow.cloneNode(true);
+        const entry = row.querySelector('input[name$="_entries[]"]');
+        const stockId = row.querySelector('input[name$="_stock_ids[]"]');
+        const qty = row.querySelector('input[name$="_qtys[]"]');
+        const cost = row.querySelector('input[name$="_custom_costs[]"]');
+        const price = row.querySelector('input[name$="_custom_prices[]"]');
+
+        if (qty) qty.value = rowData?.qty || 1;
+        if (cost) cost.value = rowData?.custom_cost || '';
+        if (price) price.value = rowData?.custom_price || '';
+
+        if (rowData?.piece_id) {
+          if (stockId) stockId.value = String(rowData.piece_id);
+          const datalist = document.getElementById(`datalist-${slot}`);
+          const match = Array.from(datalist?.options || []).find((opt) => String(opt.dataset.id) === String(rowData.piece_id));
+          if (entry) entry.value = match?.value || rowData?.piece_name || '';
+        } else {
+          if (stockId) stockId.value = '';
+          if (entry) entry.value = rowData?.custom_name || '';
+        }
+
+        list.appendChild(row);
+      });
+    });
+  }
+  {% endif %}
+  form.querySelectorAll('.piece-entry').forEach(syncPieceEntry);
+  atualizarTotais();
+</script>
+{% endblock %}

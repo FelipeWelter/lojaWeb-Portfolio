@@ -1,0 +1,355 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="card services-shell">
+  <h2>{% if edit_ticket %}Editar OS #{{ edit_ticket.id }}{% else %}Abertura de Nova OS{% endif %}</h2>
+  <p class="montage-subtitle">{% if edit_ticket %}Revise os dados abaixo e atualize a ordem de serviço mantendo o histórico.{% else %}Preencha os dados iniciais para enviar o equipamento direto para a bancada.{% endif %}</p>
+  <form method="post" action="{% if edit_ticket %}{{ url_for('atualizar_manutencao', ticket_id=edit_ticket.id) }}{% endif %}" class="grid form-grid services-form services-form-two-col">
+    {% if edit_ticket %}
+    <input type="hidden" name="action" value="editar" />
+    {% else %}
+    <input type="hidden" name="form_type" value="maintenance_ticket" />
+    {% endif %}
+
+    <label class="floating-field">
+      <span>Cliente (cadastrado ou manual)</span>
+      <input id="maintenance-client-entry" name="maintenance_client_entry" list="maintenance-clients" placeholder="Digite ou selecione o cliente" value="{{ edit_ticket.client_name if edit_ticket else '' }}" />
+      <input type="hidden" id="maintenance-client-id" name="maintenance_client_id" value="" />
+      <datalist id="maintenance-clients">
+        {% for c in clients %}
+        <option value="{{ c.name }}" data-id="{{ c.id }}" data-phone="{{ c.phone or '' }}"></option>
+        {% endfor %}
+      </datalist>
+    </label>
+    <label class="floating-field">
+      <span>Telefone</span>
+      <input id="maintenance-client-phone" name="maintenance_client_phone" value="{{ edit_ticket.client_phone if edit_ticket else '' }}" />
+    </label>
+    <label class="floating-field">
+      <span>Equipamento</span>
+      <input name="maintenance_equipment" placeholder="Opcional na abertura" value="{{ edit_ticket.equipment if edit_ticket else '' }}" />
+    </label>
+    <label class="floating-field">
+      <span>Serviço solicitado</span>
+      <input name="maintenance_service_description" placeholder="Opcional na abertura" value="{{ edit_ticket.service_description if edit_ticket else '' }}" />
+    </label>
+    <label class="floating-field">
+      <span>Status inicial</span>
+      <select name="maintenance_status">
+        {% set selected_status = ("em_analise" if edit_ticket and edit_ticket.status == "em_andamento" else (edit_ticket.status if edit_ticket else "em_analise")) %}
+        {% for value, label in maintenance_status_options %}
+        <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="floating-field">
+      <span>Data de entrada</span>
+      <input name="maintenance_entry_date" type="datetime-local" value="{{ edit_ticket.entry_date.strftime('%Y-%m-%dT%H:%M') if edit_ticket and edit_ticket.entry_date else '' }}" />
+    </label>
+    <div class="full-width">
+      <span>Peças do estoque (opcional)</span>
+      <div id="maintenance-parts-list" class="grid form-grid maintenance-parts-stack">
+        {% set opening_parts = maintenance_parts_map.get(edit_ticket.id, []) if edit_ticket else [] %}
+        {% if opening_parts %}
+          {% for part in opening_parts %}
+        <div class="maintenance-part-row">
+          <label class="floating-field">
+            <span>Peça do estoque</span>
+            <select name="maintenance_part_id[]">
+              <option value="">Sem troca de peça</option>
+              {% for product in products %}
+              <option value="{{ product.id }}" data-description="{{ product.inventory_display_name }}" {% if part.get('product_id') == product.id %}selected{% endif %}>{{ product.inventory_display_name }}</option>
+              {% endfor %}
+            </select>
+            <small class="selected-part-description" data-empty="Selecione uma peça para visualizar a descrição completa."></small>
+          </label>
+
+
+
+<!--
+          <label class="floating-field maintenance-qty-field">
+            <span>Qtd. peça</span>
+            <input name="maintenance_part_qty[]" class="maintenance-part-qty-input" type="number" min="1" value="{{ part.get('quantity') or 1 }}" />
+          </label>
+        -->
+
+          <button type="button" class="btn-secondary remove-part-row" style="align-self:center;" {% if opening_parts|length == 1 %}hidden{% endif %}>Remover</button>
+        </div>
+          {% endfor %}
+        {% else %}
+        <div class="maintenance-part-row">
+          <label class="floating-field">
+            <span>Peça do estoque</span>
+            <select name="maintenance_part_id[]">
+              <option value="">Sem troca de peça</option>
+              {% for product in products %}
+              <option value="{{ product.id }}" data-description="{{ product.inventory_display_name }}">{{ product.inventory_display_name }}</option>
+              {% endfor %}
+            </select>
+            <small class="selected-part-description" data-empty="Selecione uma peça para visualizar a descrição completa."></small>
+          </label>
+
+          <!--
+          <label class="floating-field maintenance-qty-field">
+            <span>Qtd. peça</span>
+            <input name="maintenance_part_qty[]" class="maintenance-part-qty-input" type="number" min="1" value="1" />
+          </label>
+        -->
+
+          <button type="button" class="btn-secondary remove-part-row" style="align-self:center;" hidden>Remover</button>
+        </div>
+        {% endif %}
+      </div>
+      <button type="button" id="add-maintenance-part" class="btn-secondary" style="margin-top:8px;">+ Adicionar peça</button>
+    </div>
+    
+    <label class="floating-field">
+      <span>Mão de obra (R$)</span>
+      <input name="maintenance_labor_cost" type="number" min="0" step="0.01" placeholder="0,00" value="{{ '%.2f'|format(edit_ticket.labor_cost or 0) if edit_ticket else '' }}" />
+    </label>
+
+    <label class="floating-field full-width">
+      <span>Relato do cliente</span>
+      <textarea name="maintenance_customer_report" rows="2">{{ edit_ticket.customer_report if edit_ticket else '' }}</textarea>
+    </label>
+    <label class="floating-field full-width">
+      <span>Diagnóstico técnico</span>
+      <textarea name="maintenance_technical_diagnosis" rows="2">{{ edit_ticket.technical_diagnosis if edit_ticket else '' }}</textarea>
+    </label>
+    <label class="floating-field full-width">
+      <span>Observações da bancada</span>
+      <textarea name="maintenance_observations" rows="2">{{ edit_ticket.observations if edit_ticket else '' }}</textarea>
+    </label>
+
+    <div class="checklist-block full-width">
+      <p>Checklist de manutenção</p>
+      <div class="checklist-list">
+        {% set edit_done_labels = maintenance_checklist_map.get(edit_ticket.id, []) if edit_ticket else [] %}
+        {% for item in maintenance_checklist %}
+        <label><input type="checkbox" name="check_{{ loop.index0 }}" {% if item in edit_done_labels %}checked{% endif %}/> {{ item }}</label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <button type="submit">{% if edit_ticket %}Salvar alterações da OS{% else %}Abrir OS{% endif %}</button>
+  </form>
+</section>
+
+<section class="card services-shell">
+  <h2>Manutenções em Andamento</h2>
+  <table>
+    <thead>
+      <tr><th>Cliente</th><th>Equipamento</th><th>Serviço</th><th>Entrada</th><th>Status</th><th>Ações</th></tr>
+    </thead>
+    <tbody>
+      {% for ticket in active_tickets %}
+      <tr>
+        <td>{{ ticket.client_name }}</td>
+        <td>{{ ticket.equipment }}</td>
+        <td>{{ ticket.service_description }}</td>
+        <td>{{ ticket.entry_date.strftime('%d/%m/%Y %H:%M') }}</td>
+        <td>
+          {% if ticket.status == 'aguardando_pecas' %}
+          <span class="badge warning">{{ maintenance_status_labels.get(ticket.status, ticket.status) }}</span>
+          {% elif ticket.status == 'em_analise' %}
+          <span class="badge info">{{ maintenance_status_labels.get(ticket.status, ticket.status) }}</span>
+          {% elif ticket.status == 'cancelado' %}
+          <span class="badge danger">{{ maintenance_status_labels.get(ticket.status, ticket.status) }}</span>
+          {% else %}
+          <span class="badge">{{ maintenance_status_labels.get(ticket.status, ticket.status) }}</span>
+          {% endif %}
+        </td>
+        <td>
+          <details class="service-actions-menu">
+            <summary>⋯</summary>
+            <div class="service-actions-list">
+              <a class="btn-secondary" href="{{ url_for('servicos', edit_ticket_id=ticket.id) }}">⚙️ Editar OS completa</a>
+              <button type="button" class="btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='manutencao', record_id=ticket.id) }}">🖨️ Imprimir OS</button>
+              <form method="post" action="{{ url_for('atualizar_manutencao', ticket_id=ticket.id) }}">
+                <input type="hidden" name="action" value="finalizar" />
+                <button type="submit" class="btn-success">✅ Finalizar e enviar ao histórico</button>
+              </form>
+              <form method="post" action="{{ url_for('excluir_manutencao', ticket_id=ticket.id) }}" onsubmit="return confirm('Excluir esta manutenção em andamento? Esta ação não pode ser desfeita.');">
+                <button type="submit" class="btn-loja btn-loja--danger">🗑️ Excluir manutenção</button>
+              </form>
+            </div>
+          </details>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6">Nenhum equipamento em manutenção ativa.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="card services-shell">
+  <div class="history-head">
+    <h2>Fluxo Unificado de Serviços (Pronto para retirada + Histórico)</h2>
+    <input id="service-history-search" type="search" placeholder="Buscar cliente, equipamento ou serviço..." />
+  </div>
+  <table>
+    <thead>
+      <tr><th>Data</th><th>Etapa</th><th>Origem</th><th>Serviço</th><th>Cliente</th><th>Equipamento</th><th>Valor final</th><th>Pagamento</th><th>Entrega</th><th>Ações</th></tr>
+    </thead>
+    <tbody id="service-history-body">
+      {% for item in unified_service_history %}
+      {% set service = item.service %}
+      <tr>
+        <td>{{ item.date.strftime('%d/%m/%Y %H:%M') if item.date else '-' }}</td>
+        <td>{% if item.stage == 'pronto_retirada' %}<span class="badge info">Pronto para retirada</span>{% else %}<span class="badge success">Concluído</span>{% endif %}</td>
+        <td>{% if item.type in ['os_pronta', 'os_concluida'] %}OS{% else %}Serviço avulso{% endif %}</td>
+        <td>{{ item.service_name }}</td>
+        <td>{{ item.client_name }}</td>
+        <td>{{ item.equipment }}</td>
+        <td>R$ {{ '%.2f'|format(item.total_price or 0) }}</td>
+        <td>{% if item.payment_status == 'pago' %}<span class="badge success">Pago</span>{% else %}<span class="badge warning">Pendente</span>{% endif %}</td>
+        <td><span class="badge {% if item.delivery_status == 'entregue' %}success{% elif item.delivery_status == 'desistencia' %}danger{% else %}info{% endif %}">{{ service_delivery_status_labels.get(item.delivery_status, item.delivery_status) }}</span></td>
+        <td>
+          <details class="service-actions-menu">
+            <summary>⋯</summary>
+            <div class="service-actions-list">
+              {% if item.ticket %}
+              <a class="btn-secondary" href="{{ url_for('servicos', edit_ticket_id=item.ticket.id) }}">⚙️ Editar OS completa</a>
+              <button type="button" class="btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='manutencao', record_id=item.ticket.id) }}">🖨️ Imprimir OS</button>
+              {% endif %}
+              {% if service %}
+              <button type="button" class="btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='servico', record_id=service.id) }}">🧾 Imprimir recibo</button>
+              <form method="post" action="{{ url_for('confirmar_retirada_servico', service_id=service.id) }}" onsubmit="return confirm('Confirmar que o equipamento foi entregue ao cliente?');">
+                <input type="hidden" name="action" value="entregue" />
+                <button type="submit" class="btn-success">📦 Confirmar retirada/entrega</button>
+              </form>
+              <form method="post" action="{{ url_for('confirmar_retirada_servico', service_id=service.id) }}" onsubmit="return confirm('Confirmar desistência do cliente para este serviço?');">
+                <input type="hidden" name="action" value="desistencia" />
+                <button type="submit" class="btn-loja btn-loja--danger">🚫 Confirmar desistência</button>
+              </form>
+              <details>
+                <summary>✏️ Editar serviço</summary>
+                <form method="post" action="{{ url_for('editar_servico', service_id=service.id) }}" class="inline-form">
+                  <input name="service_name" value="{{ service.service_name }}" placeholder="Nome do serviço" required />
+                  <input name="client_name" value="{{ service.client_name }}" placeholder="Cliente" required />
+                  <input name="equipment" value="{{ service.equipment }}" placeholder="Equipamento" required />
+                  <input name="total_price" type="number" min="0" step="0.01" value="{{ '%.2f'|format(service.total_price or 0) }}" />
+                  <input name="cost" type="number" min="0" step="0.01" value="{{ '%.2f'|format(service.cost or 0) }}" />
+                  <textarea name="notes" rows="2" placeholder="Observações">{{ service.notes or '' }}</textarea>
+                  <button type="submit" class="btn-secondary">Salvar edição</button>
+                </form>
+              </details>
+              <form method="post" action="{{ url_for('excluir_servico', service_id=service.id) }}" onsubmit="return confirm('Deseja excluir este serviço?');">
+                <button type="submit" class="btn-loja btn-loja--danger">🗑️ Excluir serviço</button>
+              </form>
+              {% endif %}
+            </div>
+          </details>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="10">Nenhum registro de serviço disponível.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<script>
+  const historySearch = document.getElementById('service-history-search');
+  const historyRows = Array.from(document.querySelectorAll('#service-history-body tr'));
+
+  historySearch?.addEventListener('input', () => {
+    const term = historySearch.value.toLowerCase().trim();
+    historyRows.forEach((row) => {
+      const show = row.textContent.toLowerCase().includes(term);
+      row.style.display = show ? '' : 'none';
+    });
+  });
+
+  const clonePartRow = (sourceRow) => {
+    const clone = sourceRow.cloneNode(true);
+    clone.querySelectorAll('select, input').forEach((field) => {
+      if (field.tagName === 'SELECT') field.value = '';
+      if (field.tagName === 'INPUT') field.value = '1';
+    });
+    return clone;
+  };
+
+  const syncPartDescription = (row) => {
+    const select = row?.querySelector('select[name="maintenance_part_id[]"]');
+    const helper = row?.querySelector('.selected-part-description');
+    if (!select || !helper) return;
+    const opt = select.options[select.selectedIndex];
+    const desc = opt?.dataset?.description || '';
+    helper.textContent = desc || helper.dataset.empty || '';
+  };
+
+  const bindPartDescriptionRows = (scope = document) => {
+    const rows = scope.querySelectorAll('.maintenance-part-row');
+    rows.forEach((row) => {
+      const select = row.querySelector('select[name="maintenance_part_id[]"]');
+      if (!select || select.dataset.descBound === '1') return;
+      select.dataset.descBound = '1';
+      select.addEventListener('change', () => syncPartDescription(row));
+      syncPartDescription(row);
+    });
+  };
+
+  const partsList = document.getElementById('maintenance-parts-list');
+  const addPartButton = document.getElementById('add-maintenance-part');
+
+  const updatePartButtons = () => {
+    const rows = Array.from(partsList?.querySelectorAll('.maintenance-part-row') || []);
+    rows.forEach((row) => {
+      const removeButton = row.querySelector('.remove-part-row');
+      if (!removeButton) return;
+      removeButton.hidden = rows.length === 1;
+      removeButton.onclick = () => {
+        row.remove();
+        updatePartButtons();
+      };
+    });
+  };
+
+  addPartButton?.addEventListener('click', () => {
+    const firstRow = partsList?.querySelector('.maintenance-part-row');
+    if (!firstRow || !partsList) return;
+    const clone = clonePartRow(firstRow);
+    partsList.appendChild(clone);
+    updatePartButtons();
+    bindPartDescriptionRows(partsList);
+  });
+
+  updatePartButtons();
+  bindPartDescriptionRows();
+
+  const maintenanceClientEntry = document.getElementById('maintenance-client-entry');
+  const maintenanceClientId = document.getElementById('maintenance-client-id');
+  const maintenanceClientPhone = document.getElementById('maintenance-client-phone');
+
+  const syncMaintenanceClient = () => {
+    if (!maintenanceClientEntry) return;
+    const value = maintenanceClientEntry.value.trim().toLowerCase();
+    const list = document.getElementById('maintenance-clients');
+    const match = Array.from(list?.options || []).find((option) => (option.value || '').trim().toLowerCase() === value);
+    if (match) {
+      if (maintenanceClientId) maintenanceClientId.value = match.dataset.id || '';
+      if (maintenanceClientPhone && !maintenanceClientPhone.value.trim()) {
+        maintenanceClientPhone.value = match.dataset.phone || '';
+      }
+      return;
+    }
+    if (maintenanceClientId) maintenanceClientId.value = '';
+  };
+
+  maintenanceClientEntry?.addEventListener('change', syncMaintenanceClient);
+  maintenanceClientEntry?.addEventListener('input', syncMaintenanceClient);
+  syncMaintenanceClient();
+
+  document.querySelectorAll('.js-print-trigger').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const url = btn.dataset.printUrl;
+      if (!url) return;
+      const overlay = document.getElementById('print-loading-overlay');
+      overlay?.classList.remove('hidden');
+      window.open(url, '_blank');
+      window.setTimeout(() => overlay?.classList.add('hidden'), 1200);
+    });
+  });
+</script>
+{% endblock %}

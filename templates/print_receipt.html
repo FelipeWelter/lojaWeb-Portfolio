@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ document_title }}</title>
+  {% if not is_pdf_render %}
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  {% endif %}
+  {% if not is_pdf_render %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+  {% endif %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='print.css') }}" media="print" />
+</head>
+<body>
+  <main class="container print-receipt">
+    <section class="card receipt-card">
+      <header class="receipt-header">
+        <div>
+          <img class="receipt-logo" src="{{ url_for('static', filename=store_logo or 'logo-lojaweb.svg') }}" alt="Logotipo {{ store_name }}" />
+        </div>
+
+        <section class="receipt-header-grid">
+          <article class="receipt-block">
+            <h4>Dados da Empresa</h4>
+            <p><strong>Loja:</strong> {{ store_name }}</p>
+            {% if store_cnpj %}<p><strong>CNPJ:</strong> {{ store_cnpj }}</p>{% endif %}
+            <p><strong>Endereço:</strong> {{ store_address }}</p>
+            <p><strong>Contato:</strong> {{ store_contact }}</p>
+          </article>
+
+          <article class="receipt-block">
+            <h4>Informações do Documento</h4>
+            <p><strong>Título:</strong> {{ document_title }}</p>
+            <p><strong>Número:</strong> {{ record_code }}</p>
+            <p><strong>Data/Hora:</strong> {{ record_date.strftime('%d/%m/%Y %H:%M') }}</p>
+            <p><strong>Cliente/Referência:</strong> {{ client_name }}</p>
+          </article>
+        </section>
+      </header>
+
+      <section class="receipt-section">
+        <h3>Produtos e Serviços</h3>
+        <table class="receipt-items-table">
+          <thead>
+            <tr>
+              <th>Descrição do Item</th>
+              <th>Origem / Referência</th>
+              <th>Qtd.</th>
+              <th>Valor Unitário (R$)</th>
+              <th>Subtotal (R$)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in items %}
+            <tr>
+              <td>{{ row.item }}</td>
+              <td>{% if row.source_label is defined %}{{ row.source_label }}{% if row.sku %} · SKU: {{ row.sku }}{% endif %}{% elif row.serial_number is defined and row.serial_number %}{{ row.serial_number }}{% else %}-{% endif %}</td>
+              <td>{{ row.quantity }}</td>
+              <td>{{ '%.2f'|format(row.unit_price if row.unit_price is defined else 0) }}</td>
+              <td>{{ '%.2f'|format(row.total) }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+
+      {% if service_receipt_lines is defined and service_receipt_lines %}
+      <section class="receipt-section">
+        <h3>Serviços Registrados</h3>
+        <table class="receipt-items-table">
+          <thead>
+            <tr>
+              <th>Serviço</th>
+              <th>Equipamento / Observações</th>
+              <th>Qtd.</th>
+              <th>Valor Unitário (R$)</th>
+              <th>Subtotal (R$)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for service in service_receipt_lines %}
+            <tr>
+              <td>{{ service.service_name }}</td>
+              <td>{{ service.equipment }}{% if service.notes %} · {{ service.notes }}{% endif %}</td>
+              <td>1</td>
+              <td>{{ '%.2f'|format(service.total_price) }}</td>
+              <td>{{ '%.2f'|format(service.total_price) }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+      {% endif %}
+
+      {% if assembly_inline %}
+      <section class="receipt-section checklist-section">
+        <h3>Checklist Técnico de Montagem</h3>
+        <div class="checklist-grid">
+          <article class="receipt-block">
+            <p><strong>Montagem:</strong> {{ assembly_inline.nome_referencia or (assembly_inline.computador.name if assembly_inline.computador else 'Computador') }}</p>
+            <p><strong>ID da Montagem:</strong> #{{ assembly_inline.id }}</p>
+            <p><strong>Preço Base (R$):</strong> {{ '%.2f'|format(assembly_inline.preco_original or 0) }}</p>
+          </article>
+          <article class="receipt-block">
+            <p><strong>BIOS Atualizada:</strong> {{ 'Sim' if assembly_inline.bios_updated else 'Não' }}</p>
+            <p><strong>Stress Test:</strong> {{ 'Sim' if assembly_inline.stress_test_done else 'Não' }}</p>
+            <p><strong>Sistema Operacional:</strong> {{ 'Sim' if assembly_inline.os_installed else 'Não' }}</p>
+            <p><strong>Adicionais (R$):</strong> BIOS {{ '%.2f'|format(assembly_inline.bios_service_cost or 0) }}, Stress {{ '%.2f'|format(assembly_inline.stress_test_cost or 0) }}, SO {{ '%.2f'|format(assembly_inline.os_install_cost or 0) }}</p>
+          </article>
+        </div>
+
+        {% if assembly_receipt_items is defined and assembly_receipt_items %}
+        <table class="receipt-items-table">
+          <thead>
+            <tr><th>Peça/Serviço</th><th>Origem</th><th>Qtd.</th><th>Valor Unitário (R$)</th><th>Subtotal (R$)</th></tr>
+          </thead>
+          <tbody>
+            {% for part in assembly_receipt_items %}
+            <tr>
+              <td>{{ part.item }}</td>
+              <td>{{ part.source_label }}</td>
+              <td>{{ part.quantity }}</td>
+              <td>{{ '%.2f'|format(part.unit_price) }}</td>
+              <td>{{ '%.2f'|format(part.total) }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+      </section>
+      {% endif %}
+
+      <section class="receipt-section receipt-highlight-section">
+        <h3>Resumo Financeiro</h3>
+        <table class="receipt-summary-table">
+          <tbody>
+            <tr>
+              <th>Valor Bruto (R$)</th>
+              <td>{{ '%.2f'|format(gross_total if gross_total is defined else subtotal) }}</td>
+            </tr>
+            <tr>
+              <th>Desconto (R$)</th>
+              <td>{{ '%.2f'|format(discount_amount or 0) }}</td>
+            </tr>
+            <tr class="receipt-summary-total-row">
+              <th>Valor Líquido Final (R$)</th>
+              <td>{{ '%.2f'|format(total) }}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="receipt-finance-meta">
+          {% if payment_method_label is defined %}
+          <p><strong>Forma de pagamento:</strong> {{ payment_method_label }}</p>
+          {% endif %}
+          {% if payment_status_label is defined %}
+          <p><strong>Status do pagamento:</strong> {{ payment_status_label }}</p>
+          {% endif %}
+        </div>
+      </section>
+
+      {% if payment_lines is defined and payment_lines %}
+      <section class="receipt-section">
+        <h3>Cronograma de Parcelamento</h3>
+        <table class="receipt-installments-table">
+          <thead>
+            <tr>
+              <th>Método</th>
+              <th>Parcela</th>
+              <th>Vencimento</th>
+              <th>Valor (R$)</th>
+              <th>Pago (R$)</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for payment in payment_lines %}
+              {% if payment.installments %}
+                {% for installment in payment.installments %}
+                {% set status_class = installment.status_label|lower|replace(' ', '-')|replace('ã', 'a')|replace('á', 'a')|replace('à', 'a')|replace('â', 'a')|replace('é', 'e')|replace('ê', 'e')|replace('í', 'i')|replace('ó', 'o')|replace('ô', 'o')|replace('õ', 'o')|replace('ú', 'u')|replace('ç', 'c') %}
+                <tr>
+                  <td>{{ payment.method_label }}</td>
+                  <td>{{ installment.number }}ª</td>
+                  <td>{{ installment.due_date.strftime('%d/%m/%Y') if installment.due_date else '-' }}</td>
+                  <td>{{ '%.2f'|format(installment.amount) }}</td>
+                  <td>{{ '%.2f'|format(installment.amount_paid) }}</td>
+                  <td><span class="installment-status status-{{ status_class }}">{{ installment.status_label }}</span></td>
+                </tr>
+                {% endfor %}
+              {% else %}
+                {% set status_class = payment.status_label|lower|replace(' ', '-')|replace('ã', 'a')|replace('á', 'a')|replace('à', 'a')|replace('â', 'a')|replace('é', 'e')|replace('ê', 'e')|replace('í', 'i')|replace('ó', 'o')|replace('ô', 'o')|replace('õ', 'o')|replace('ú', 'u')|replace('ç', 'c') %}
+                <tr>
+                  <td>{{ payment.method_label }}</td>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>{{ '%.2f'|format(payment.amount) }}</td>
+                  <td>{{ '%.2f'|format(payment.amount_paid) }}</td>
+                  <td><span class="installment-status status-{{ status_class }}">{{ payment.status_label }}</span></td>
+                </tr>
+              {% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+      {% endif %}
+
+      {% if payment_status_label is defined and payment_status_label == 'Pendente' %}
+      <section class="receipt-section pix-qrcode-block">
+        <h3>Pagamento via Pix</h3>
+        {% if pix_qr_url is defined and pix_qr_url %}
+        <p>Escaneie o QR Code para realizar o pagamento imediato.</p>
+        <img
+          src="{{ pix_qr_url }}"
+          alt="QR Code Pix para pagamento do documento {{ record_code }}"
+          width="120"
+          height="120"
+        />
+        <p><strong>Copia e Cola Pix:</strong> {{ pix_qr_payload }}</p>
+        {% else %}
+        <p>
+          QR Code Pix indisponível: configure a chave em <strong>PIX_KEY</strong>
+          no ambiente da aplicação.
+        </p>
+        {% endif %}
+      </section>
+      {% endif %}
+
+      <section class="receipt-section">
+        <p><strong>Observações:</strong> {{ notes }}</p>
+        <p><strong>Técnico Responsável:</strong> {{ performed_by_name }}</p>
+      </section>
+
+      {% if record_code.startswith('MON-') or record_code.startswith('OS-') %}
+      <section class="signature-grid">
+        <article class="signature-box">
+          <p>Assinatura do Técnico</p>
+        </article>
+        <article class="signature-box">
+          <p>Assinatura do Cliente</p>
+        </article>
+      </section>
+      {% endif %}
+
+      <footer class="receipt-legal-footer">
+        <p>
+          Garantia de 30 dias para serviços executados e peças com defeito de fabricação.
+          Trocas sujeitas à avaliação técnica e apresentação deste documento.
+        </p>
+      </footer>
+
+      {% if is_assembly_label is defined and is_assembly_label %}
+      <section class="assembly-label-print">
+        <h3>Etiqueta de Identificação</h3>
+        <p><strong>Montagem:</strong> {{ assembly_name }}</p>
+        <p><strong>ID:</strong> {{ assembly_id }}</p>
+        <img src="{{ assembly_qr_url }}" alt="QR Code da montagem {{ assembly_id }}" width="120" height="120" />
+      </section>
+      {% endif %}
+    </section>
+  </main>
+</body>
+</html>

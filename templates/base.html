@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ ui_store_name or 'LojaWeb' }} - Gestão</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='variables.css') }}" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='print.css') }}" media="print" />
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename=ui_store_logo or 'logo-lojaweb.svg') }}" />
+  </head>
+  <body class="{% if request.endpoint == 'login' %}auth-page{% else %}dashboard-page{% endif %}">
+    {% from 'fragments.html' import sidebar, navbar, toast_messages, scripts %}
+
+    {% if request.endpoint != 'login' and session.get('user_id') %}
+    <div class="app-shell">
+      {{ sidebar(request.endpoint) }}
+      <div class="app-content">
+        {{ navbar(user_name) }}
+    {% endif %}
+
+    <main class="container">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+      {{ toast_messages(messages) }}
+      {% endif %}
+      {% endwith %}
+
+      {% block content %}{% endblock %}
+    </main>
+
+    {% if request.endpoint != 'login' and session.get('user_id') %}
+      </div>
+    </div>
+    {% endif %}
+
+    <div id="print-loading-overlay" class="print-loading-overlay hidden" role="status" aria-live="polite">
+      <div class="print-loading-card">Gerando documento...</div>
+    </div>
+
+    {{ scripts() }}
+  </body>
+</html>

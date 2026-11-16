@@ -1,0 +1,150 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="crm-toolbar card">
+  <div class="crm-search-wrap">
+    <span class="crm-search-icon">🔎</span>
+    <input id="client-search" type="search" placeholder="Pesquisar por nome, CPF/CNPJ, WhatsApp ou e-mail..." />
+  </div>
+</section>
+
+<section class="card">
+  <h2>{{ "Editar cliente" if editing_client else "Novo cliente" }}</h2>
+  <form method="post" action="{{ url_for('mesclar_clientes') }}" class="grid form-grid crm-form-grid" style="margin-bottom:1rem;">
+    <label><span>Mesclar cliente origem (ID)</span><input name="source_client_id" type="number" min="1" required></label>
+    <label><span>No cliente destino (ID)</span><input name="target_client_id" type="number" min="1" required></label>
+    <button type="submit" class="btn-loja btn-loja--secondary" style="align-self:center;">Mesclar históricos</button>
+  </form>
+  <form method="post" class="grid form-grid crm-form-grid">
+    <input type="hidden" name="client_id" value="{{ editing_client.id if editing_client else "" }}" />
+    <label>
+      <span>Nome</span>
+      <input name="name" placeholder="Nome completo" value="{{ editing_client.name if editing_client else "" }}" required />
+    </label>
+    <label>
+      <span>CPF/CNPJ</span>
+      <input name="cpf" placeholder="000.000.000-00" value="{{ editing_client.cpf if editing_client else "" }}" />
+    </label>
+    <label>
+      <span>WhatsApp</span>
+      <input name="phone" placeholder="(11) 99999-9999" value="{{ editing_client.phone if editing_client else "" }}" />
+    </label>
+    <label>
+      <span>E-mail</span>
+      <input name="email" type="email" placeholder="cliente@email.com" value="{{ editing_client.email if editing_client else "" }}" />
+    </label>
+    <button type="submit" class="btn-loja btn-loja--primary btn-primary"><span aria-hidden="true">{{ "✎" if editing_client else "＋" }}</span> {{ "Salvar alterações" if editing_client else "Novo Cliente" }}</button>
+    {% if editing_client %}<a class="btn-loja btn-loja--secondary" href="{{ url_for('clientes') }}">Cancelar edição</a>{% endif %}
+  </form>
+</section>
+
+<section class="card">
+  <h2>Clientes</h2>
+  <div class="table-wrap crm-table-wrap">
+    <table class="crm-client-table">
+      <thead><tr><th>Cliente</th><th>CPF/CNPJ</th><th>WhatsApp</th><th>E-mail</th><th>Ações</th></tr></thead>
+      <tbody id="client-table-body">
+        {% set ns = namespace(last='') %}
+        {% for c in clients %}
+        {% if c.initial != ns.last %}
+        <tr class="client-letter-row"><td colspan="5">{{ c.initial }}</td></tr>
+        {% set ns.last = c.initial %}
+        {% endif %}
+        <tr class="client-row" data-search="{{ (c.name ~ ' ' ~ (c.cpf or '') ~ ' ' ~ (c.phone or '') ~ ' ' ~ (c.email or ''))|lower }}" data-client-id="{{ c.id }}">
+          <td>
+            <button type="button" class="client-link accordion-toggle" data-target="history-{{ c.id }}" aria-expanded="false">
+              <span class="client-avatar">{{ c.initials }}</span>
+              <span class="client-name-highlight">{{ c.name }}</span> <span class="service-badge">[{{ c.service_count }}]</span>
+            </button>
+          </td>
+          <td>{{ c.cpf or '-' }}</td>
+          <td>{{ c.phone or '-' }}</td>
+          <td>{{ c.email or '-' }}</td>
+          <td>
+            <div class="table-actions table-actions--client">
+              <a class="btn-loja btn-loja--secondary btn-premium btn-premium-icon btn-ghost" href="{{ url_for('clientes', edit_client_id=c.id) }}" title="Editar cliente" aria-label="Editar cliente">✏️</a>
+              <button type="button" class="btn-loja btn-loja--secondary btn-premium btn-premium-icon btn-ghost accordion-toggle" data-target="history-{{ c.id }}" aria-expanded="false" title="Ver histórico" aria-label="Ver histórico">👁️</button>
+              <a class="btn-loja btn-loja--secondary btn-premium btn-premium-print js-print-trigger" href="{{ url_for('imprimir', tipo='cliente_relatorio', record_id=c.id, scope='inadimplentes', via='cliente') }}" target="_blank" title="Imprimir ficha do cliente" aria-label="Imprimir ficha do cliente">🖨️</a>
+              <form method="post" action="{{ url_for('remover_cliente', client_id=c.id) }}" onsubmit="return confirm('Deseja remover este cliente?');">
+                <button type="submit" class="btn-loja btn-loja--danger btn-premium btn-premium-icon btn-danger" title="Remover cliente" aria-label="Remover cliente">🗑️</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        <tr id="history-{{ c.id }}" class="client-history-row">
+          <td colspan="5">
+            <div class="client-history-accordion">
+              <div>
+                <h4>Histórico de Compras</h4>
+                <ul class="drawer-list">
+                  {% for s in c.sales %}
+                  <li><strong>{{ s.sale_name }}</strong><br><small>{{ s.created_at.strftime('%d/%m/%Y %H:%M') }}</small> · R$ {{ '%.2f'|format(s.total) }}</li>
+                  {% else %}
+                  <li>Sem compras registradas.</li>
+                  {% endfor %}
+                </ul>
+              </div>
+              <div>
+                <h4>Status de Débitos</h4>
+                <ul class="drawer-list">
+                  {% for charge in c.pending_charges %}
+                  <li>
+                    Cobrança {{ charge.mercado_pago_reference }}
+                    <span class="status-pill {{ charge.status|lower }}">{{ charge.status }}</span>
+                    <a class="btn-link js-print-trigger" target="_blank" href="{{ url_for('imprimir', tipo='cliente_quitacao', record_id=charge.id) }}">Imprimir Recibo</a>
+                  </li>
+                  {% else %}
+                  <li>Sem cobranças pendentes.</li>
+                  {% endfor %}
+                </ul>
+              </div>
+            </div>
+          </td>
+        </tr>
+        {% else %}<tr><td colspan="5">Sem clientes.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!--
+{% set modal_id='client-confirm-modal' %}
+{% set modal_title='Confirmação' %}
+{% set modal_message='Confirme a operação para continuar.' %}
+{% include 'includes/modal.html' %}
+
+-->
+
+<script>
+  const searchInput = document.getElementById('client-search');
+  const searchableRows = document.querySelectorAll('.client-row');
+
+  searchInput?.addEventListener('input', (event) => {
+    const term = event.target.value.toLowerCase().trim();
+    searchableRows.forEach((row) => {
+      const haystack = row.dataset.search || '';
+      const visible = haystack.includes(term);
+      row.style.display = visible ? '' : 'none';
+      const historyRow = document.getElementById(`history-${row.dataset.clientId}`);
+      if (historyRow && !visible) {
+        historyRow.classList.remove('is-open');
+        row.querySelectorAll('.accordion-toggle').forEach((btn) => btn.setAttribute('aria-expanded', 'false'));
+      }
+    });
+  });
+
+  document.querySelectorAll('.accordion-toggle').forEach((button) => {
+    button.addEventListener('click', () => {
+      const targetId = button.dataset.target;
+      const targetRow = document.getElementById(targetId);
+      if (!targetRow) return;
+
+      const isOpen = targetRow.classList.contains('is-open');
+      targetRow.classList.toggle('is-open', !isOpen);
+      const row = button.closest('.client-row');
+      if (row) {
+        row.querySelectorAll('.accordion-toggle').forEach((btn) => btn.setAttribute('aria-expanded', String(!isOpen)));
+      }
+    });
+  });
+</script>
+{% endblock %}

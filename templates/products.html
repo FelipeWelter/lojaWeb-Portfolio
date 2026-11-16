@@ -1,0 +1,384 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="card" id="new-item-flow">
+  <div class="inventory-header product-header">
+    <h2>{% if edit_product %}Editar item no estoque{% else %}Novo item no estoque{% endif %}</h2>
+    {% if edit_product %}<p>Editando <strong>{{ edit_product.name }}</strong>. Ajuste os dados e salve.</p>{% endif %}
+  </div>
+
+  <section class="form-zone">
+    <h3>1) Tipo de item</h3>
+    <div class="action-group">
+      <button type="button" class="btn-loja btn-loja--primary" id="choose-piece-btn">Peça</button>
+      <a class="btn-loja btn-loja--secondary" id="choose-computer-btn" href="{{ url_for('montar_pc') }}">🖥️​ Montar Computador</a>
+    </div>
+  </section>
+
+  <section class="form-zone" id="piece-class-step" hidden>
+    <h3>2) Classe da peça <span id="selected-class-chip" class="badge success" style="display:none;"></span></h3>
+    <label>Selecione a classe
+      <select id="component-class-step-select">
+        <option value="">Selecione</option>
+        <option value="gabinete">Gabinete</option>
+        <option value="fans">Fans</option>
+        <option value="placa_mae">Placa-mãe</option>
+        <option value="placa_video">Placa de Vídeo</option>
+        <option value="processador">Processador</option>
+        <option value="memoria_ram">Memória RAM</option>
+        <option value="armazenamento">Armazenamento</option>
+        <option value="fonte">Fonte</option>
+        <option value="perifericos">Periféricos</option>
+      </select>
+    </label>
+  </section>
+
+  <form method="post" action="{% if edit_product %}{{ url_for('editar_produto', product_id=edit_product.id) }}{% else %}{{ url_for('produtos') }}{% endif %}" class="grid form-grid piece-form-grid" id="piece-form" enctype="multipart/form-data" hidden>
+    <input type="hidden" name="form_mode" value="piece" />
+    <input type="hidden" name="category" value="Peça" />
+    <input type="hidden" name="component_class" id="component-class-hidden" value="{{ edit_product.component_class if edit_product else "" }}" />
+    {% if return_to %}<input type="hidden" name="return_to" value="{{ return_to }}" />{% endif %}
+
+    <div class="product-zone-grid full-width">
+      <section class="form-zone zone-identity">
+        <h3>3) Dados principais</h3>
+        <input type="hidden" name="name" id="piece-name-hidden" value="{{ edit_product.name if edit_product else "" }}" />
+        <p class="suggested-price-hint">Nome automático da peça: <strong id="piece-name-preview">{{ edit_product.name if edit_product else "Será gerado automaticamente" }}</strong></p>
+        <label>Número de Série (S/N)<input name="serial_number" id="serial-number-input" placeholder="Número de Série (S/N)" value="{{ edit_product.serial_number if edit_product else "" }}" /></label>
+      </section>
+
+      <section class="form-zone zone-meta">
+        <h3>4) Dados técnicos da classe selecionada</h3>
+        <p id="piece-help-text" class="piece-help-text">Selecione uma classe para exibir os campos corretos.</p>
+
+        <div id="no-extra-fields" class="component-extra-fields" hidden style="display:none;">
+          <h4>Sem campos adicionais para essa classe</h4>
+          <p>Para essa classe, preencha apenas os dados principais, valores e estoque.</p>
+        </div>
+
+
+        <div id="cabinet-fields" class="component-extra-fields" hidden style="display:none;">
+          <h4>Gabinete</h4>
+          <label>Marca<input name="cabinet_brand" placeholder="Ex: Cooler Master" value="{{ edit_product.cabinet_brand if edit_product else "" }}" /></label>
+          <label>Descrição<input name="cabinet_description" placeholder="Ex: Mid Tower com lateral em vidro" value="{{ edit_product.cabinet_description if edit_product else "" }}" /></label>
+        </div>
+
+        <div id="fans-fields" class="component-extra-fields" hidden style="display:none;">
+          <h4>Fans</h4>
+          <label>Marca<input name="fan_brand" placeholder="Ex: Corsair" value="{{ edit_product.fan_brand if edit_product else "" }}" /></label>
+          <label>Descrição<input name="fan_description" placeholder="Ex: Kit com 3 fans ARGB 120mm" value="{{ edit_product.fan_description if edit_product else "" }}" /></label>
+        </div>
+
+        <div id="ram-fields" class="component-extra-fields" hidden style="display:none;">
+          <h4>Memória RAM</h4>
+          <label>Tecnologia (DDR)
+            <select name="ram_ddr">
+              <option value="">Selecione</option>
+              <option value="DDR3" {% if edit_product and edit_product.ram_ddr == "DDR3" %}selected{% endif %}>DDR3</option>
+              <option value="DDR4" {% if edit_product and edit_product.ram_ddr == "DDR4" %}selected{% endif %}>DDR4</option>
+              <option value="DDR5" {% if edit_product and edit_product.ram_ddr == "DDR5" %}selected{% endif %}>DDR5</option>
+            </select>
+          </label>
+          <label>Marca<input name="ram_brand" placeholder="Ex: Kingston" value="{{ edit_product.ram_brand if edit_product else "" }}" /></label>
+          <label>Frequência<input name="ram_frequency" placeholder="Ex: 3200 MHz" value="{{ edit_product.ram_frequency if edit_product else "" }}" /></label>
+          <label>Capacidade<input name="ram_size" placeholder="Ex: 16 GB" value="{{ edit_product.ram_size if edit_product else "" }}" /></label>
+        </div>
+
+        <div id="cpu-fields" class="component-extra-fields" hidden style="display:none;">
+          <h4>Processador</h4>
+          <label>Fabricante
+            <select name="cpu_manufacturer">
+              <option value="">Selecione</option>
+              <option value="Intel" {% if edit_product and edit_product.cpu_manufacturer == "Intel" %}selected{% endif %}>Intel</option>
+              <option value="AMD" {% if edit_product and edit_product.cpu_manufacturer == "AMD" %}selected{% endif %}>AMD</option>
+            </select>
+          </label>
+                    <label>Modelo<input name="cpu_model" placeholder="Ex: Ryzen 5 5600" value="{{ edit_product.cpu_model if edit_product else "" }}" /></label>
+        </div>
+
+        <div id="motherboard-fields" class="component-extra-fields" hidden style="display:none;">
+          <h4>Placa-mãe</h4>
+          <label>Marca<input name="motherboard_brand" placeholder="Ex: ASUS" value="{{ edit_product.motherboard_brand if edit_product else "" }}" /></label>
+          <label>Modelo<input name="motherboard_model" placeholder="Ex: TUF B550M" value="{{ edit_product.motherboard_model if edit_product else "" }}" /></label>
+          <label>Socket<input name="motherboard_socket" placeholder="Ex: AM4 / LGA1700" value="{{ edit_product.motherboard_socket if edit_product else "" }}" /></label>
+          <label>Chipset<input name="motherboard_chipset" placeholder="Ex: B550" value="{{ edit_product.motherboard_chipset if edit_product else "" }}" /></label>
+        </div>
+
+        <div id="psu-fields" class="component-extra-fields" hidden style="display:none;">
+          <h4>Fonte</h4>
+          <label>Marca<input name="psu_brand" placeholder="Ex: Corsair" value="{{ edit_product.psu_brand if edit_product else "" }}" /></label>
+          <label>Potência (Watts)<input name="psu_watts" placeholder="Ex: 650W" value="{{ edit_product.psu_watts if edit_product else "" }}" /></label>
+        </div>
+
+        <div id="gpu-fields" class="component-extra-fields" hidden style="display:none;">
+          <h4>Placa de vídeo</h4>
+          <label>Memória da placa<input name="gpu_memory" placeholder="Ex: 8 GB" value="{{ edit_product.gpu_memory if edit_product else "" }}" /></label>
+          <label>Marca<input name="gpu_brand" placeholder="Ex: ASUS" value="{{ edit_product.gpu_brand if edit_product else "" }}" /></label>
+          <label>Fabricante
+            <select name="gpu_manufacturer">
+              <option value="">Selecione</option>
+              <option value="NVIDIA" {% if edit_product and edit_product.gpu_manufacturer == "NVIDIA" %}selected{% endif %}>NVIDIA</option>
+              <option value="AMD" {% if edit_product and edit_product.cpu_manufacturer == "AMD" %}selected{% endif %}>AMD</option>
+              <option value="INTEL" {% if edit_product and edit_product.gpu_manufacturer == "INTEL" %}selected{% endif %}>INTEL</option>
+            </select>
+          </label>
+        </div>
+
+        <div id="storage-fields" class="component-extra-fields" hidden style="display:none;">
+          <h4>Armazenamento</h4>
+          <label>Tipo
+            <select name="storage_type">
+              <option value="">Selecione</option>
+              <option value="HD" {% if edit_product and edit_product.storage_type == "HD" %}selected{% endif %}>HD</option>
+              <option value="SSD" {% if edit_product and edit_product.storage_type == "SSD" %}selected{% endif %}>SSD</option>
+            </select>
+          </label>
+          <label>Capacidade<input name="storage_capacity" placeholder="Ex: 1 TB" value="{{ edit_product.storage_capacity if edit_product else "" }}" /></label>
+          <label>Marca<input name="storage_brand" placeholder="Ex: Western Digital" value="{{ edit_product.storage_brand if edit_product else "" }}" /></label>
+        </div>
+
+
+        <div id="peripherals-fields" class="component-extra-fields" hidden style="display:none;">
+          <h4>Periféricos</h4>
+          <label>Mouse<input name="peripheral_mouse" placeholder="Ex: Logitech G203" value="{{ edit_product.peripheral_mouse if edit_product else "" }}" /></label>
+          <label>Teclado<input name="peripheral_keyboard" placeholder="Ex: Redragon Kumara" value="{{ edit_product.peripheral_keyboard if edit_product else "" }}" /></label>
+          <label>Monitor<input name="peripheral_monitor" placeholder="Ex: LG 24 polegadas" value="{{ edit_product.peripheral_monitor if edit_product else "" }}" /></label>
+          <label>Cabo de força<input name="peripheral_power_cable" placeholder="Ex: Padrão NBR 14136" value="{{ edit_product.peripheral_power_cable if edit_product else "" }}" /></label>
+          <label>Cabo HDMI<input name="peripheral_hdmi_cable" placeholder="Ex: HDMI 2.1 2m" value="{{ edit_product.peripheral_hdmi_cable if edit_product else "" }}" /></label>
+        </div>
+      </section>
+
+      <section class="form-zone zone-finance">
+        <h3>5) Valores</h3>
+        <label>Custo unitário<div class="money-wrap"><input name="cost_price" id="cost-input" class="js-clear-prefill" type="text" data-money="true" placeholder="0,00" value="{{ "%.2f"|format(edit_product.cost_price) if edit_product else "0,00" }}" required /></div></label>
+        <label>Preço de venda<div class="money-wrap"><input name="price" id="price-input" class="js-clear-prefill" type="text" data-money="true" placeholder="0,00" value="{{ "%.2f"|format(edit_product.price) if edit_product else "0,00" }}" required /></div></label>
+
+        <p class="suggested-price-hint">Sugestão de preço mínimo (margem de 20%):
+        </br>
+          <label class="checkbox-inline" for="apply-suggested-price">
+            <input type="checkbox" id="apply-suggested-price" name="apply_suggested_price">
+            Aplicar sugestão de preço mínimo <strong id="suggested-price">R$ 0,00</strong>
+          </label>
+        </p>
+        
+
+        <label>Frete/Taxas<div class="money-wrap"><input name="freight_fees" id="freight-input" class="js-clear-prefill" type="text" data-money="true" placeholder="0,00" value="0,00" /></div></label>
+        <label>Margem de lucro (%)<span id="margin-pill" class="margin-pill ok">0,00%</span><input name="margin_percent" id="margin-input" type="text" value="0,00" readonly /></label>
+      </section>
+
+      <section class="form-zone zone-logistics">
+        <h3>6) Estoque</h3>
+        <label>Estoque atual<input name="stock" type="number" min="0" placeholder="Estoque" value="{{ edit_product.stock if edit_product else "" }}" required /></label>
+      </section>
+
+      <section class="form-zone zone-media full-width">
+        <h3>Mídia do produto</h3>
+        <label class="media-upload-field">Imagem do produto<input name="photo_file" type="file" accept="image/*" /></label>
+      </section>
+    </div>
+    <button type="submit">{% if edit_product %}Salvar alterações{% else %}Cadastrar no estoque{% endif %}</button>
+  </form>
+</section>
+
+<script>
+  const choosePieceBtn = document.getElementById('choose-piece-btn');
+  const pieceClassStep = document.getElementById('piece-class-step');
+  const classSelect = document.getElementById('component-class-step-select');
+  const pieceForm = document.getElementById('piece-form');
+  const classHidden = document.getElementById('component-class-hidden');
+  const helpTextEl = document.getElementById('piece-help-text');
+
+  const classChip = document.getElementById('selected-class-chip');
+  const classLabels = {
+    gabinete: 'Gabinete', fans: 'Fans', placa_mae: 'Placa-mãe', placa_video: 'Placa de Vídeo',
+    processador: 'Processador', memoria_ram: 'Memória RAM', armazenamento: 'Armazenamento',
+    fonte: 'Fonte', perifericos: 'Periféricos'
+  };
+
+  function activatePieceFlow() {
+    pieceClassStep.hidden = false;
+    if (!classSelect.value) {
+      pieceForm.hidden = true;
+    }
+  }
+
+  function toggleTechnicalFieldsByClass() {
+    const selectedClass = classSelect.value;
+    classHidden.value = selectedClass;
+    pieceForm.hidden = !selectedClass;
+    if (classChip) {
+      if (selectedClass) {
+        classChip.textContent = classLabels[selectedClass] || selectedClass;
+        classChip.style.display = 'inline-flex';
+      } else {
+        classChip.textContent = '';
+        classChip.style.display = 'none';
+      }
+    }
+
+    const fieldsMap = {
+      gabinete: document.getElementById('cabinet-fields'),
+      fans: document.getElementById('fans-fields'),
+      memoria_ram: document.getElementById('ram-fields'),
+      processador: document.getElementById('cpu-fields'),
+      placa_mae: document.getElementById('motherboard-fields'),
+      fonte: document.getElementById('psu-fields'),
+      placa_video: document.getElementById('gpu-fields'),
+      armazenamento: document.getElementById('storage-fields'),
+      perifericos: document.getElementById('peripherals-fields'),
+    };
+
+    const helpMap = {
+      gabinete: 'Gabinete: preencha marca e descrição.',
+      fans: 'Fans: preencha marca e descrição do kit ou modelo.',
+      memoria_ram: 'RAM: tecnologia DDR, frequência, marca e capacidade. RAM não usa campos de armazenamento.',
+      processador: 'Processador: preencha fabricante e modelo.',
+      placa_mae: 'Placa-mãe: preencha marca, modelo, socket e chipset.',
+      fonte: 'Fonte: informe marca e potência real.',
+      placa_video: 'GPU: informe memória, fabricante da GPU e marca parceira.',
+      armazenamento: 'Armazenamento: informe tipo, capacidade e marca.',
+      perifericos: 'Periféricos: informe mouse, teclado, monitor e cabos.',
+    };
+
+    const noExtraClasses = [];
+    const noExtraFields = document.getElementById('no-extra-fields');
+
+    Object.entries(fieldsMap).forEach(([key, fieldContainer]) => {
+      if (!fieldContainer) return;
+      const visible = selectedClass === key;
+      fieldContainer.hidden = !visible;
+      fieldContainer.style.display = visible ? 'block' : 'none';
+      fieldContainer.querySelectorAll('input, select').forEach((input) => {
+        if (!visible) input.value = '';
+      });
+    });
+
+    if (noExtraFields) {
+      const showNoExtra = Boolean(selectedClass) && noExtraClasses.includes(selectedClass);
+      noExtraFields.hidden = !showNoExtra;
+      noExtraFields.style.display = showNoExtra ? 'block' : 'none';
+    }
+
+    if (helpTextEl) {
+      helpTextEl.textContent = helpMap[selectedClass] || 'Para essa classe, preencha somente os campos exibidos abaixo.';
+    }
+  }
+
+  function parseMoneyValue(value) {
+    const normalized = String(value || '').replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, '');
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  function calculateProfitMargin({ cost, freight, price }) {
+    const totalCost = cost + freight;
+    const profit = price - totalCost;
+    if (price <= 0) return 0;
+    return (profit / price) * 100;
+  }
+
+  function updateMarginRealtime() {
+    const cost = parseMoneyValue(document.getElementById('cost-input')?.value || 0);
+    const freight = parseMoneyValue(document.getElementById('freight-input')?.value || 0);
+    const price = parseMoneyValue(document.getElementById('price-input')?.value || 0);
+    const margin = calculateProfitMargin({ cost, freight, price });
+    const suggestedPrice = (cost + freight) * 1.25;
+    const marginInput = document.getElementById('margin-input');
+    const pill = document.getElementById('margin-pill');
+    const suggestedPriceEl = document.getElementById('suggested-price');
+    const applySuggestedInput = document.getElementById('apply-suggested-price');
+    const priceInput = document.getElementById('price-input');
+    if (marginInput) marginInput.value = margin.toFixed(2).replace('.', ',');
+    if (suggestedPriceEl) suggestedPriceEl.textContent = `R$ ${suggestedPrice.toFixed(2).replace('.', ',')}`;
+    if (applySuggestedInput?.checked && priceInput) {
+      priceInput.value = suggestedPrice.toFixed(2).replace('.', ',');
+    }
+    if (!pill) return;
+    pill.textContent = `${margin.toFixed(2).replace('.', ',')}%`;
+    pill.classList.remove('ok', 'warn', 'bad');
+    if (margin < 0) pill.classList.add('bad');
+    else if (margin < 10) pill.classList.add('warn');
+    else pill.classList.add('ok');
+  }
+
+  function updateGeneratedPieceName() {
+    const selectedClass = classSelect.value;
+    const classLabel = classLabels[selectedClass] || 'Peça';
+
+    const pick = (selector) => (pieceForm?.querySelector(selector)?.value || '').trim();
+    let parts = [];
+    if (selectedClass === 'gabinete') {
+      parts = [pick('input[name="cabinet_brand"]'), pick('input[name="cabinet_description"]')];
+    } else if (selectedClass === 'fans') {
+      parts = [pick('input[name="fan_brand"]'), pick('input[name="fan_description"]')];
+    } else if (selectedClass === 'memoria_ram') {
+      parts = [pick('input[name="ram_brand"]'), pick('input[name="ram_size"]'), pick('select[name="ram_ddr"]'), pick('input[name="ram_frequency"]')];
+    } else if (selectedClass === 'processador') {
+      parts = [pick('select[name="cpu_manufacturer"]'), pick('input[name="cpu_model"]')];
+    } else if (selectedClass === 'placa_mae') {
+      parts = [pick('input[name="motherboard_brand"]'), pick('input[name="motherboard_model"]'), pick('input[name="motherboard_socket"]'), pick('input[name="motherboard_chipset"]')];
+    } else if (selectedClass === 'placa_video') {
+      parts = [pick('input[name="gpu_brand"]'), pick('input[name="gpu_memory"]'), pick('input[name="gpu_manufacturer"]')];
+    } else if (selectedClass === 'armazenamento') {
+      parts = [pick('input[name="storage_brand"]'), pick('select[name="storage_type"]'), pick('input[name="storage_capacity"]')];
+    } else if (selectedClass === 'fonte') {
+      parts = [pick('input[name="psu_brand"]'), pick('input[name="psu_watts"]')];
+    } else if (selectedClass === 'perifericos') {
+      parts = [
+        pick('input[name="peripheral_mouse"]'),
+        pick('input[name="peripheral_keyboard"]'),
+        pick('input[name="peripheral_monitor"]'),
+        pick('input[name="peripheral_power_cable"]'),
+        pick('input[name="peripheral_hdmi_cable"]'),
+      ];
+    }
+
+    parts = parts.filter(Boolean);
+    let generated = parts.length ? `${classLabel} ${parts.join(' ')}` : classLabel;
+    const serial = (document.getElementById('serial-number-input')?.value || '').trim();
+    if (serial) generated += ` SN:${serial}`;
+
+    generated = generated.slice(0, 120).trim();
+    const hidden = document.getElementById('piece-name-hidden');
+    const preview = document.getElementById('piece-name-preview');
+    if (hidden) hidden.value = generated;
+    if (preview) preview.textContent = generated || 'Será gerado automaticamente';
+  }
+
+  function scheduleMarginUpdate() {
+    window.requestAnimationFrame(updateMarginRealtime);
+    window.requestAnimationFrame(updateGeneratedPieceName);
+  }
+
+  choosePieceBtn.addEventListener('click', activatePieceFlow);
+  classSelect.addEventListener('change', toggleTechnicalFieldsByClass);
+
+  document.getElementById('cost-input')?.addEventListener('input', scheduleMarginUpdate);
+  document.getElementById('freight-input')?.addEventListener('input', scheduleMarginUpdate);
+  document.getElementById('price-input')?.addEventListener('input', scheduleMarginUpdate);
+  document.getElementById('serial-number-input')?.addEventListener('input', scheduleMarginUpdate);
+  document.getElementById('apply-suggested-price')?.addEventListener('change', scheduleMarginUpdate);
+  pieceForm?.querySelectorAll('input, select').forEach((field) => {
+    if (field.id === 'cost-input' || field.id === 'freight-input' || field.id === 'price-input') return;
+    field.addEventListener('input', scheduleMarginUpdate);
+    field.addEventListener('change', scheduleMarginUpdate);
+  });
+
+  document.querySelectorAll('.js-clear-prefill').forEach((input) => {
+    input.addEventListener('focus', () => {
+      if ((input.value || '').trim() === '0,00' || (input.value || '').trim() === '0.00') {
+        input.value = '';
+      }
+    }, { once: true });
+  });
+
+
+  {% if edit_product %}
+  activatePieceFlow();
+  classSelect.value = '{{ edit_product.component_class }}';
+  toggleTechnicalFieldsByClass();
+  {% endif %}
+
+  updateMarginRealtime();
+  updateGeneratedPieceName();
+</script>
+{% endblock %}
